@@ -51,6 +51,8 @@ export function accountFilter(
           {
             'payee.transfer_acct.offbudget': true,
             'payee.transfer_acct': null,
+            // Outgoing transfers between on budget accounts can be categorized
+            amount: { $lt: 0 },
           },
         ],
       };
@@ -130,6 +132,8 @@ export function uncategorizedTransactions() {
       {
         'payee.transfer_acct.offbudget': true,
         'payee.transfer_acct': null,
+        // Outgoing transfers between on budget accounts can be categorized
+        amount: { $lt: 0 },
       },
     ],
   });

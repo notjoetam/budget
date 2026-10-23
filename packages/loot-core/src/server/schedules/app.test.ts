@@ -8,6 +8,7 @@ import * as prefs from '#server/prefs';
 import { loadRules, updateRule } from '#server/transactions/transaction-rules';
 import { q } from '#shared/query';
 import { getNextDate } from '#shared/schedules';
+import type { RuleConditionEntity } from '#types/models';
 
 import {
   advanceSchedulesService,
@@ -834,6 +835,37 @@ describe('schedule app', () => {
       }
     });
 
+    it('posts the schedule name as the transaction notes', async () => {
+      schedulesApp.startServices();
+
+      try {
+        const accountId = await db.insertAccount({
+          name: 'Checking',
+          offbudget: 0,
+          closed: 0,
+        });
+
+        const id = await createSchedule({
+          schedule: { name: 'Rent' },
+          conditions: [
+            { op: 'is', field: 'account', value: accountId },
+            { op: 'is', field: 'amount', value: -10000 },
+            { op: 'is', field: 'date', value: '2016-12-05' },
+          ],
+        });
+
+        await schedulesApp.handlers['schedule/post-transaction']({ id });
+
+        const { data: transactions } = await aqlQuery(
+          q('transactions').filter({ schedule: id }).select(['notes']),
+        );
+
+        expect(transactions.map(({ notes }) => notes)).toEqual(['Rent']);
+      } finally {
+        await schedulesApp.stopServices();
+      }
+    });
+
     it('continues auto-post catch-up after an already paid occurrence', async () => {
       MockDate.set(new Date(2016, 11, 31, 12));
       schedulesApp.startServices();
@@ -1258,6 +1290,82 @@ describe('schedule app', () => {
         expect(transactions.map(({ amount }) => amount)).toEqual([-8000]);
       } finally {
         MockDate.reset();
+        await schedulesApp.stopServices();
+      }
+    });
+
+    it('sets the category of posted transactions', async () => {
+      schedulesApp.startServices();
+
+      try {
+        await db.insertCategoryGroup({ id: 'group', name: 'group' });
+        await db.insertCategory({
+          id: 'rent',
+          name: 'Rent',
+          cat_group: 'group',
+        });
+        await db.insertCategory({
+          id: 'misc',
+          name: 'Misc',
+          cat_group: 'group',
+        });
+        const accountId = await db.insertAccount({
+          name: 'Checking',
+          offbudget: 0,
+          closed: 0,
+        });
+        const conditions: RuleConditionEntity[] = [
+          { op: 'is', field: 'account', value: accountId },
+          { op: 'is', field: 'amount', value: -10000 },
+          { op: 'is', field: 'date', value: '2016-12-05' },
+        ];
+
+        async function getRuleActions() {
+          const { data: ruleId } = await aqlQuery(
+            q('schedules').filter({ id }).calculate('rule'),
+          );
+          const rule = await db.first<Pick<db.DbRule, 'actions'>>(
+            'SELECT actions FROM rules WHERE id = ?',
+            [ruleId],
+          );
+          return JSON.parse(rule.actions);
+        }
+        const categoryActions = async () =>
+          (await getRuleActions()).filter(a => a.field === 'category');
+
+        const id = await createSchedule({ conditions, category: 'rent' });
+        expect(await categoryActions()).toEqual([
+          { op: 'set', field: 'category', value: 'rent', type: 'id' },
+        ]);
+
+        await schedulesApp.handlers['schedule/post-transaction']({ id });
+        const { data: transactions } = await aqlQuery(
+          q('transactions').filter({ schedule: id }).select(['category']),
+        );
+        expect(transactions.map(({ category }) => category)).toEqual(['rent']);
+
+        // Editing without a category leaves it alone
+        await updateSchedule({ schedule: { id, name: 'Rent' }, conditions });
+        expect((await categoryActions()).map(a => a.value)).toEqual(['rent']);
+
+        // Changing it alongside the amount keeps a single category action
+        await updateSchedule({
+          schedule: { id },
+          conditions: [
+            ...conditions.slice(0, 1),
+            { op: 'is', field: 'amount', value: -5000 },
+            conditions[2],
+          ],
+          category: 'misc',
+        });
+        expect((await categoryActions()).map(a => a.value)).toEqual(['misc']);
+
+        await updateSchedule({ schedule: { id }, category: null });
+        expect(await categoryActions()).toEqual([]);
+        expect((await getRuleActions()).map(a => a.op)).toEqual([
+          'link-schedule',
+        ]);
+      } finally {
         await schedulesApp.stopServices();
       }
     });

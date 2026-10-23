@@ -29,19 +29,28 @@ async function clearCategory(transaction, transferAcct) {
     Pick<db.DbAccount, 'offbudget'>
   >('SELECT offbudget FROM accounts WHERE id = ?', [transferAcct]);
 
-  // If the transfer is between two on budget or two off budget accounts,
-  // we should clear the category, because the category is not relevant
-  if (fromOffBudget === toOffBudget) {
-    await db.updateTransaction({ id: transaction.id, category: null });
-    if (transaction.transfer_id) {
-      await db.updateTransaction({
-        id: transaction.transfer_id,
-        category: null,
-      });
-    }
-    return true;
+  // A transfer between an on budget and an off budget account keeps its
+  // categories as-is
+  if (fromOffBudget !== toOffBudget) {
+    return false;
   }
-  return false;
+
+  // Between two on budget accounts, only the outgoing side may keep a
+  // category. Between two off budget accounts, neither side may.
+  const isOnBudget = !fromOffBudget;
+  const keepCategory = isOnBudget && transaction.amount < 0;
+  const keepTransferCategory = isOnBudget && transaction.amount > 0;
+
+  if (!keepCategory) {
+    await db.updateTransaction({ id: transaction.id, category: null });
+  }
+  if (transaction.transfer_id && !keepTransferCategory) {
+    await db.updateTransaction({
+      id: transaction.transfer_id,
+      category: null,
+    });
+  }
+  return !keepCategory;
 }
 
 export async function addTransfer(transaction, transferredAccount) {

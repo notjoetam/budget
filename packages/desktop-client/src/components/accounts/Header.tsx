@@ -323,6 +323,7 @@ export function AccountHeader({
           <BalanceHistoryGraph
             ref={graphRef}
             accountId={accountId}
+            showProjection
             style={{
               height: 'calc(5vh + 5vw)',
               margin: 0,

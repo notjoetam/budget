@@ -38,6 +38,7 @@ import type { Actions } from '#hooks/useSelected';
 export type ScheduleFormFields = {
   payee: null | string;
   account: null | string;
+  category: null | string;
   amount: null | number | { num1: number; num2: number };
   amountOp: null | string;
   date: null | string | RecurConfig;
@@ -49,7 +50,7 @@ export type ScheduleFormFields = {
 export type ScheduleEditFormDispatch =
   | {
       type: 'set-field';
-      field: 'name' | 'account' | 'payee';
+      field: 'name' | 'account' | 'payee' | 'category';
       value: string;
     }
   | {
@@ -179,7 +180,23 @@ export function ScheduleEditForm({
             />
           </FormField>
 
-          <FormField style={{ flex: 1, gridColumn: '1 / -1' }}>
+          <FormField style={{ flex: 1 }}>
+            <FormLabel
+              title={t('Category')}
+              id="category-label"
+              htmlFor="category-field"
+            />
+            <GenericInput
+              type="id"
+              field="category"
+              value={fields.category || ''}
+              onChange={id =>
+                dispatch({ type: 'set-field', field: 'category', value: id })
+              }
+            />
+          </FormField>
+
+          <FormField style={{ flex: 1 }}>
             <SpaceBetween style={{ marginBottom: 3, alignItems: 'center' }}>
               <FormLabel
                 title={t('Amount')}

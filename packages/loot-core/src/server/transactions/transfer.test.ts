@@ -171,6 +171,44 @@ describe('Transfer', () => {
     differ.expectToMatchDiff(await getAllTransactions());
   });
 
+  test('outgoing on budget transfers keep their category', async () => {
+    await prepareDatabase();
+
+    const transferTwo = await db.first<db.DbPayee>(
+      "SELECT * FROM payees WHERE transfer_acct = 'two'",
+    );
+
+    let transaction: Transaction = {
+      account: 'one',
+      amount: -5000,
+      payee: transferTwo.id,
+      date: '2017-01-01',
+      category: '1',
+    };
+    transaction.id = await db.insertTransaction(transaction);
+    await transfer.onInsert(transaction);
+
+    transaction = await db.getTransaction(transaction.id);
+    expect(transaction.category).toBe('1');
+    expect((await db.getTransaction(transaction.transfer_id)).category).toBe(
+      null,
+    );
+
+    // Categorizing the incoming side is not allowed
+    await db.updateTransaction({ id: transaction.transfer_id, category: '1' });
+    await transfer.onUpdate(await db.getTransaction(transaction.transfer_id));
+    expect((await db.getTransaction(transaction.transfer_id)).category).toBe(
+      null,
+    );
+    expect((await db.getTransaction(transaction.id)).category).toBe('1');
+
+    // Flipping the outgoing side to incoming clears its category
+    transaction = { ...transaction, amount: 5000 };
+    await db.updateTransaction(transaction);
+    await transfer.onUpdate(transaction);
+    expect((await db.getTransaction(transaction.id)).category).toBe(null);
+  });
+
   test('split transfers are retained on child transactions', async () => {
     // test: first add a txn having a transfer acct payee
     // then mark it as `is_parent` and add a child txn

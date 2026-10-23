@@ -718,7 +718,10 @@ const TransactionEditInner = memo<TransactionEditInnerProps>(
     const isBudgetTransfer = useCallback(
       (trans: TransactionEntity) => {
         const transferAcct = trans ? getTransferAccount(trans) : null;
-        return transferAcct ? !transferAcct.offbudget : false;
+        // Outgoing transfers between on budget accounts can be categorized
+        return transferAcct
+          ? !transferAcct.offbudget && trans.amount >= 0
+          : false;
       },
       [getTransferAccount],
     );

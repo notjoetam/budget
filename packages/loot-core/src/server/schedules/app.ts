@@ -34,8 +34,10 @@ import {
   getScheduledAmount,
   getStatus,
   recurConfigToRSchedule,
+  setScheduleCategory,
 } from '#shared/schedules';
 import type {
+  CategoryEntity,
   RuleActionEntity,
   RuleConditionEntity,
   ScheduleEntity,
@@ -335,9 +337,11 @@ async function allowAutoPostingToRunAgainToday(postsTransaction: boolean) {
 export async function createSchedule({
   schedule = null,
   conditions = [],
+  category = null,
 }: {
   schedule?: Partial<ScheduleEntity> | null;
   conditions?: RuleConditionEntity[];
+  category?: CategoryEntity['id'] | null;
 } = {}): Promise<ScheduleEntity['id']> {
   const scheduleId = schedule?.id || uuidv4();
 
@@ -368,7 +372,10 @@ export async function createSchedule({
     stage: null,
     conditionsOp: 'and',
     conditions,
-    actions: [{ op: 'link-schedule', value: scheduleId }],
+    actions: setScheduleCategory(
+      [{ op: 'link-schedule', value: scheduleId }],
+      category,
+    ),
   });
 
   const now = Date.now();
@@ -396,10 +403,13 @@ export async function createSchedule({
 export async function updateSchedule({
   schedule,
   conditions,
+  category,
   resetNextDate,
 }: {
   schedule: Partial<ScheduleEntity> & Pick<ScheduleEntity, 'id'>;
   conditions?: RuleConditionEntity[];
+  // `undefined` leaves the category unchanged, `null` removes it
+  category?: CategoryEntity['id'] | null;
   resetNextDate?: boolean;
 }) {
   if (schedule.rule) {
@@ -424,9 +434,11 @@ export async function updateSchedule({
     if (dateCond && dateCond.value == null) {
       throw new Error('Date is required');
     }
+  }
 
+  if (conditions || category !== undefined) {
     // We need to get the full rule to merge in the updated
-    // conditions
+    // conditions and actions
     rule = await getRuleForSchedule(schedule.id);
 
     if (rule == null) {
@@ -439,11 +451,24 @@ export async function updateSchedule({
   }
 
   await batchMessages(async () => {
+    if (category !== undefined && !conditions) {
+      await updateRule({
+        id: rule.id,
+        actions: setScheduleCategory(rule.serialize().actions, category),
+      });
+    }
+
     if (conditions) {
       const oldConditions = rule.serialize().conditions;
       const newConditions = updateConditions(oldConditions, conditions);
 
-      const newActions = updateActions(newConditions, rule.serialize().actions);
+      let newActions = updateActions(newConditions, rule.serialize().actions);
+      if (category !== undefined) {
+        newActions = setScheduleCategory(
+          newActions ?? rule.serialize().actions,
+          category,
+        );
+      }
 
       await updateRule({
         id: rule.id,
@@ -606,6 +631,9 @@ async function postTransactionForSchedule({
     date: today ? currentDay() : schedule.next_date,
     schedule: schedule.id,
     cleared: false,
+    // Upcoming transactions show the schedule name as their notes, so
+    // keep it on the posted transaction. Rules can still override it.
+    ...(schedule.name ? { notes: schedule.name } : {}),
   };
 
   if (transaction.account) {

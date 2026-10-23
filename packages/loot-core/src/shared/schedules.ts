@@ -3,7 +3,11 @@ import type { IRuleOptions } from '@rschedule/core';
 import * as d from 'date-fns';
 
 import { Condition } from '#server/rules';
-import type { RuleConditionEntity, ScheduleEntity } from '#types/models';
+import type {
+  RuleActionEntity,
+  RuleConditionEntity,
+  ScheduleEntity,
+} from '#types/models';
 
 import * as monthUtils from './months';
 import { q } from './query';
@@ -513,4 +517,42 @@ export function computeSchedulePreviewTransactions(
         monthUtils.parseDate(b.date).getTime() -
           monthUtils.parseDate(a.date).getTime() || a.amount - b.amount,
     );
+}
+
+/**
+ * Whether an action is the plain "set category" action that the schedule
+ * form manages. Split, template and formula actions are left to the rule.
+ */
+export function isScheduleCategoryAction(action: RuleActionEntity) {
+  return (
+    action.op === 'set' &&
+    action.field === 'category' &&
+    !action.options?.splitIndex &&
+    !action.options?.template &&
+    !action.options?.formula
+  );
+}
+
+export function getScheduleCategory(
+  actions: readonly RuleActionEntity[] | undefined,
+): string | null {
+  const action = actions?.find(isScheduleCategoryAction);
+  return action && 'value' in action && typeof action.value === 'string'
+    ? action.value
+    : null;
+}
+
+export function setScheduleCategory(
+  actions: readonly RuleActionEntity[],
+  category: string | null,
+): RuleActionEntity[] {
+  const otherActions = actions.filter(
+    action => !isScheduleCategoryAction(action),
+  );
+  return category
+    ? [
+        ...otherActions,
+        { op: 'set', field: 'category', value: category, type: 'id' },
+      ]
+    : otherActions;
 }

@@ -6,7 +6,9 @@ import * as monthUtils from '@actual-app/core/shared/months';
 import { q } from '@actual-app/core/shared/query';
 import {
   extractScheduleConds,
+  getScheduleCategory,
   getScheduledAmount,
+  isScheduleCategoryAction,
 } from '@actual-app/core/shared/schedules';
 import type {
   RecurConfig,
@@ -36,7 +38,7 @@ type ScheduleEditAction =
     }
   | {
       type: 'set-field';
-      field: 'name' | 'account' | 'payee';
+      field: 'name' | 'account' | 'payee' | 'category';
       value: string;
     }
   | {
@@ -100,7 +102,9 @@ function createScheduleEditReducer(useGetScheduledAmount: boolean = false) {
         const condsSet = new Set(Object.values(conds));
         const isCustom = !!(
           schedule._conditions?.find(c => !condsSet.has(c)) ||
-          schedule._actions?.find(a => a.op !== 'link-schedule')
+          schedule._actions?.find(
+            a => a.op !== 'link-schedule' && !isScheduleCategoryAction(a),
+          )
         );
 
         return {
@@ -110,6 +114,7 @@ function createScheduleEditReducer(useGetScheduledAmount: boolean = false) {
           fields: {
             payee: schedule._payee ?? null,
             account: schedule._account ?? null,
+            category: getScheduleCategory(schedule._actions),
             amount: schedule._amount || 0,
             amountOp: schedule._amountOp || 'isapprox',
             date: schedule._date ?? null,
@@ -258,6 +263,7 @@ export function useScheduleEdit({
     fields: {
       payee: null,
       account: null,
+      category: null,
       amount: null,
       amountOp: null,
       date: null,

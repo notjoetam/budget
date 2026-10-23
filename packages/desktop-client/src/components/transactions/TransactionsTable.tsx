@@ -1366,7 +1366,10 @@ const Transaction = memo(function Transaction({
     isTemporaryId(id) && payee?.transfer_acct
       ? getAccountsById(accounts)[payee.transfer_acct]
       : transferAccountsByTransaction[id];
-  const isBudgetTransfer = transferAcct && transferAcct.offbudget === 0;
+  // Outgoing transfers between on budget accounts can be categorized
+  const isOutflow = debit !== '' && credit === '';
+  const isBudgetTransfer =
+    transferAcct && transferAcct.offbudget === 0 && !isOutflow;
   const isOffBudget = account && account.offbudget === 1;
 
   const valueStyle = added

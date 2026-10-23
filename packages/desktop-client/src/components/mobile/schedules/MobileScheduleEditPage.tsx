@@ -105,6 +105,7 @@ export function MobileScheduleEditPage() {
           name: state.fields.name,
         },
         conditions,
+        category: state.fields.category || null,
       },
     );
 

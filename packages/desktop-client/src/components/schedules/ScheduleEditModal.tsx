@@ -7,6 +7,7 @@ import { SpaceBetween } from '@actual-app/components/space-between';
 import { send, sendCatch } from '@actual-app/core/platform/client/connection';
 import * as monthUtils from '@actual-app/core/shared/months';
 import { q } from '@actual-app/core/shared/query';
+import { setScheduleCategory } from '@actual-app/core/shared/schedules';
 import type {
   RecurConfig,
   ScheduleEntity,
@@ -67,6 +68,7 @@ export function ScheduleEditModal({ id, transaction }: ScheduleEditModalProps) {
             start: transaction.date,
             patterns: [],
           },
+          _actions: setScheduleCategory([], transaction.category ?? null),
         } satisfies Partial<ScheduleEntity>)
       : {};
 
@@ -131,6 +133,7 @@ export function ScheduleEditModal({ id, transaction }: ScheduleEditModalProps) {
           name: state.fields.name,
         },
         conditions,
+        category: state.fields.category || null,
       },
     );
 
