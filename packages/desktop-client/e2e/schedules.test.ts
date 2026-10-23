@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { ConfigurationPage } from './page-models/configuration-page';
 import { Navigation } from './page-models/navigation';
+import { ScheduleEditModal } from './page-models/schedule-edit-modal';
 import type { SchedulesPage } from './page-models/schedules-page';
 
 test.describe('Schedules', () => {
@@ -83,6 +84,48 @@ test.describe('Schedules', () => {
       'Show completed schedules',
     );
     await expect(page).toMatchThemeScreenshots();
+  });
+
+  test('saves the category of a schedule', async () => {
+    const scheduleEditModal = await schedulesPage.addNewSchedule();
+    await scheduleEditModal.fill({
+      payee: 'Home Depot',
+      account: 'HSBC',
+      category: 'Food',
+      amount: 25,
+    });
+    await scheduleEditModal.add();
+
+    const schedule = schedulesPage.getNthSchedule(2);
+    await expect(schedule.payee).toHaveText('Home Depot');
+
+    await schedule.date.click();
+    const editModal = new ScheduleEditModal(
+      page.getByTestId('schedule-edit-modal'),
+    );
+    await expect(editModal.categoryInput).toHaveValue('Food');
+    await editModal.close();
+
+    // Adding a category to an existing schedule. Rows can be re-sorted
+    // after saving, so look the schedule up by name
+    const search = page.getByPlaceholder('Filter schedules…');
+    await schedulesPage.getNthSchedule(0).date.click();
+    await expect(editModal.categoryInput).toHaveValue('');
+    await editModal.scheduleNameInput.fill('Category test');
+    await editModal.fill({ category: 'General' });
+    await editModal.save();
+
+    await search.fill('Category test');
+    await schedulesPage.getNthSchedule(0).date.click();
+    await expect(editModal.categoryInput).toHaveValue('General');
+    await editModal.close();
+
+    // The category shows the first time a schedule opens after a reload
+    await page.reload();
+    await search.fill('Category test');
+    await schedulesPage.getNthSchedule(0).date.click();
+    await expect(editModal.scheduleNameInput).toHaveValue('Category test');
+    await expect(editModal.categoryInput).toHaveValue('General');
   });
 
   test('shows a scheduled split transfer in its destination account', async () => {

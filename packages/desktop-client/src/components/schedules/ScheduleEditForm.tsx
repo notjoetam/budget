@@ -30,6 +30,7 @@ import { SelectedItemsButton } from '#components/table';
 import { SimpleTransactionsTable } from '#components/transactions/SimpleTransactionsTable';
 import { AmountInput, BetweenAmountInput } from '#components/util/AmountInput';
 import { GenericInput } from '#components/util/GenericInput';
+import { useCategories } from '#hooks/useCategories';
 import { useDateFormat } from '#hooks/useDateFormat';
 import { useLocale } from '#hooks/useLocale';
 import { SelectedProvider } from '#hooks/useSelected';
@@ -122,6 +123,7 @@ export function ScheduleEditForm({
   const { t } = useTranslation();
   const dateFormat = useDateFormat() || 'MM/dd/yyyy';
   const { isNarrowWidth } = useResponsive();
+  const { data: categories } = useCategories();
 
   return (
     <>
@@ -187,6 +189,10 @@ export function ScheduleEditForm({
               htmlFor="category-field"
             />
             <GenericInput
+              // The autocomplete only looks up the category name when it
+              // mounts, and the categories start out as an empty list, so
+              // mount it again once they have loaded
+              key={categories?.list.length ?? 0}
               type="id"
               field="category"
               value={fields.category || ''}

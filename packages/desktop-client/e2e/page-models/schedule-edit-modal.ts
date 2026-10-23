@@ -4,6 +4,7 @@ type ScheduleEntry = {
   scheduleName?: string;
   payee?: string;
   account?: string;
+  category?: string;
   amount?: number;
 };
 
@@ -14,6 +15,7 @@ export class ScheduleEditModal {
   readonly scheduleNameInput: Locator;
   readonly payeeInput: Locator;
   readonly accountInput: Locator;
+  readonly categoryInput: Locator;
   readonly amountInput: Locator;
   readonly addButton: Locator;
   readonly saveButton: Locator;
@@ -29,6 +31,11 @@ export class ScheduleEditModal {
     });
     this.payeeInput = locator.getByRole('textbox', { name: 'Payee' });
     this.accountInput = locator.getByRole('textbox', { name: 'Account' });
+    // The category autocomplete has no accessible name, so find the input
+    // in the same form field as its label
+    this.categoryInput = locator.locator(
+      'xpath=.//label[normalize-space()="Category"]/ancestor::*[.//input][1]//input',
+    );
     this.amountInput = locator.getByLabel('Amount');
     this.addButton = locator.getByRole('button', { name: 'Add' });
     this.saveButton = locator.getByRole('button', { name: 'Save' });
@@ -51,6 +58,10 @@ export class ScheduleEditModal {
 
     if (data.account) {
       await this.#typeAndSelectOption(this.accountInput, data.account);
+    }
+
+    if (data.category) {
+      await this.#typeAndSelectOption(this.categoryInput, data.category);
     }
 
     if (data.amount) {
